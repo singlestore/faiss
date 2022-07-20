@@ -244,11 +244,38 @@ else()
   add_compile_options(/bigobj)
 endif()
 
+add_library(faiss_sve ${FAISS_SRC})
+if(NOT FAISS_OPT_LEVEL STREQUAL "sve")
+  set_target_properties(faiss_sve PROPERTIES EXCLUDE_FROM_ALL TRUE)
+endif()
+if(NOT WIN32)
+  if("${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG} " MATCHES "(^| )-march=native")
+    # Do nothing, expect SVE to be enabled by -march=native
+  elseif("${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG} " MATCHES "(^| )(-march=armv[0-9]+(\\.[1-9]+)?-[^+ ](\\+[^+$ ]+)*)")
+    # Add +sve
+    target_compile_options(faiss_sve PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:DEBUG>>:${CMAKE_MATCH_2}+sve>)
+  elseif(NOT "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG} " MATCHES "(^| )-march=armv")
+    # No valid -march, so specify -march=armv8-a+sve as the default
+    target_compile_options(faiss_sve PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:DEBUG>>:-march=armv8-a+sve>)
+  endif()
+  if("${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE} " MATCHES "(^| )-march=native")
+    # Do nothing, expect SVE to be enabled by -march=native
+  elseif("${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE} " MATCHES "(^| )(-march=armv[0-9]+(\\.[1-9]+)?-[^+ ](\\+[^+$ ]+)*)")
+    # Add +sve
+    target_compile_options(faiss_sve PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:RELEASE>>:${CMAKE_MATCH_2}+sve>)
+  elseif(NOT "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE} " MATCHES "(^| )-march=armv")
+    # No valid -march, so specify -march=armv8-a+sve as the default
+    target_compile_options(faiss_sve PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:RELEASE>>:-march=armv8-a+sve>)
+  endif()
+endif()
+
 # Handle `#include <faiss/foo.h>`.
 target_include_directories(faiss PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>)
 # Handle `#include <faiss/foo.h>`.
 target_include_directories(faiss_avx2 PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>)
+target_include_directories(faiss_sve PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>)
 
 set_target_properties(faiss PROPERTIES
@@ -259,18 +286,25 @@ set_target_properties(faiss_avx2 PROPERTIES
   POSITION_INDEPENDENT_CODE ON
   WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
+set_target_properties(faiss_sve PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+  WINDOWS_EXPORT_ALL_SYMBOLS ON
+)
 
 if(WIN32)
   target_compile_definitions(faiss PRIVATE FAISS_MAIN_LIB)
   target_compile_definitions(faiss_avx2 PRIVATE FAISS_MAIN_LIB)
+  target_compile_definitions(faiss_sve PRIVATE FAISS_MAIN_LIB)
 endif()
 
 target_compile_definitions(faiss PRIVATE FINTEGER=int)
 target_compile_definitions(faiss_avx2 PRIVATE FINTEGER=int)
+target_compile_definitions(faiss_sve PRIVATE FINTEGER=int)
 
 find_package(OpenMP REQUIRED)
 target_link_libraries(faiss PRIVATE OpenMP::OpenMP_CXX)
 target_link_libraries(faiss_avx2 PRIVATE OpenMP::OpenMP_CXX)
+target_link_libraries(faiss_sve PRIVATE OpenMP::OpenMP_CXX)
 
 find_package(MKL)
 if(MKL_FOUND)
@@ -280,10 +314,12 @@ else()
   find_package(BLAS REQUIRED)
   target_link_libraries(faiss PRIVATE ${BLAS_LIBRARIES})
   target_link_libraries(faiss_avx2 PRIVATE ${BLAS_LIBRARIES})
+  target_link_libraries(faiss_sve PRIVATE ${BLAS_LIBRARIES})
 
   find_package(LAPACK REQUIRED)
   target_link_libraries(faiss PRIVATE ${LAPACK_LIBRARIES})
   target_link_libraries(faiss_avx2 PRIVATE ${LAPACK_LIBRARIES})
+  target_link_libraries(faiss_sve PRIVATE ${LAPACK_LIBRARIES})
 endif()
 
 install(TARGETS faiss
@@ -295,6 +331,12 @@ install(TARGETS faiss
 )
 if(FAISS_OPT_LEVEL STREQUAL "avx2")
   install(TARGETS faiss_avx2
+    EXPORT faiss-targets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
+elseif(FAISS_OPT_LEVEL STREQUAL "sve")
+  install(TARGETS faiss_sve
     EXPORT faiss-targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
