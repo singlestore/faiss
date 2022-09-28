@@ -20,6 +20,7 @@ set(FAISS_TEST_SRC
   test_threaded_index.cpp
   test_transfer_invlists.cpp
   test_mem_leak.cpp
+  test_ivfflat_pmode.cpp
   test_cppcontrib_sa_decode.cpp
   test_cppcontrib_uintreader.cpp
 )
