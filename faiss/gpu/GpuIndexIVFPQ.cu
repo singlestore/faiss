@@ -11,6 +11,7 @@
 #include <faiss/gpu/GpuIndexIVFPQ.h>
 #include <faiss/gpu/GpuResources.h>
 #include <faiss/gpu/utils/DeviceUtils.h>
+#include <faiss/impl/AuxIndexStructures.h>
 #include <faiss/utils/utils.h>
 #include <faiss/gpu/impl/IVFPQ.cuh>
 #include <faiss/gpu/utils/CopyUtils.cuh>
@@ -19,6 +20,9 @@
 
 namespace faiss {
 namespace gpu {
+
+// maximum number of vectors to consider per page of remove
+constexpr size_t kRemoveVecSize = (size_t)512 * 1024;
 
 GpuIndexIVFPQ::GpuIndexIVFPQ(
         GpuResourcesProvider* provider,
@@ -451,6 +455,31 @@ void GpuIndexIVFPQ::verifySettings_() const {
             bitsPerCode_,
             subQuantizers_,
             requiredSmemSize);
+}
+
+size_t GpuIndexIVFPQ::remove_ids(const IDSelector& sel) {
+    const IDSelectorArray* sela = dynamic_cast<const IDSelectorArray*>(&sel);
+    if (sela == NULL) {
+        FAISS_THROW_MSG("it should be an IDSelectorArray instance");
+    }
+
+    if (sela->n <= 0 || !sela->ids) {
+        return 0;
+    }
+
+    size_t removed = 0;
+
+    if (sela->n > kRemoveVecSize) {
+        size_t tileSize = kRemoveVecSize;
+        for (size_t i = 0; i < (size_t)sela->n; i += tileSize) {
+            size_t curNum = std::min(tileSize, sela->n - i);
+            removed += index_->removeVectors(curNum, sela->ids + i);
+        }
+    } else {
+        removed += index_->removeVectors(sela->n, sela->ids);
+    }
+
+    return removed;
 }
 
 } // namespace gpu

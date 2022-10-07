@@ -389,6 +389,9 @@ void IVFBase::addEncodedVectorsToList_(
     // Handle the indices as well
     addIndicesFromCpu_(listId, indices, numVecs);
 
+    // save index mapping
+    indexMapping(listId, indices, numVecs);
+
     deviceListDataPointers_.setAt(
             listId, (void*)listCodes->data.data(), stream);
     deviceListLengths_.setAt(listId, (int)numVecs, stream);
@@ -677,8 +680,243 @@ int IVFBase::addVectors(
             listOffsetDevice,
             stream);
 
+    // save index mapping
+    HostTensor<Index::idx_t, 1, true> indicesHost(indices, stream);
+    indexMapping(listIdsHost, listOffsetHost, indicesHost);
+
     // We added this number
     return numAdded;
+}
+
+void IVFBase::removeVectors_(
+        Tensor<int, 1, true>& listIds,
+        Tensor<int, 1, true>& listOffset,
+        Tensor<int, 1, true>& listReplaceOffset,
+        Tensor<long, 1, true>& listIndicesReplaceOffset,
+        cudaStream_t stream) {
+    FAISS_THROW_MSG("need to be implemented in subclasses");
+}
+
+size_t IVFBase::removeVectors(size_t n, const Index::idx_t* indicesHost) {
+    if (interleavedLayout_) {
+        FAISS_THROW_MSG("not support for interleaved layout yet");
+    }
+    if (n == 0 || !indicesHost) {
+        return 0;
+    }
+
+    /// swap positions with the vector at the end of the list
+    size_t removeSize = 0;
+    std::unordered_map<int, std::vector<int>> assignCounts;
+    for (int i = 0; i < n; i++) {
+        auto it = indexMap.find(indicesHost[i]);
+        if (it != indexMap.end()) {
+            int listId = it->second.listId;
+            int offset = it->second.offset;
+            if (listId >= 0 && listId < deviceListData_.size() && offset >= 0 &&
+                offset < deviceListData_[listId]->numVecs) {
+                auto it = assignCounts.find(listId);
+                if (it != assignCounts.end()) {
+                    it->second.emplace_back(offset);
+                } else {
+                    std::vector<int> listOffset = {offset};
+                    assignCounts.emplace(listId, std::move(listOffset));
+                }
+                removeSize++;
+            }
+            indexMap.erase(it);
+        }
+    }
+    /// order by desc
+    for (auto& counts : assignCounts) {
+        if (counts.second.size() > 1) {
+            std::sort(
+                    counts.second.begin(),
+                    counts.second.end(),
+                    [&](int a, int b) { return a > b; });
+        }
+    }
+
+    size_t removeSizeOnGpu = 0;
+    std::vector<int> listIdsHost(n);
+    std::vector<int> listOffsetHost(n);
+    std::vector<int> listReplaceOffsetHost(n);
+
+    // check if need swap positions
+    for (auto& counts : assignCounts) {
+        auto& data = deviceListData_[counts.first];
+        std::vector<int> listReplaceOffset(counts.second.size(), -1);
+        for (auto& offset : counts.second) {
+            if (offset < (data->numVecs - counts.second.size())) {
+                for (int i = 0; i < listReplaceOffset.size(); i++) {
+                    if (listReplaceOffset[i] == -1) {
+                        listReplaceOffset[i] = offset;
+
+                        listIdsHost[removeSizeOnGpu] = counts.first;
+                        listOffsetHost[removeSizeOnGpu] = offset;
+                        listReplaceOffsetHost[removeSizeOnGpu] =
+                                data->numVecs - i - 1;
+                        removeSizeOnGpu++;
+                        break;
+                    }
+                }
+            }
+            // do not need swap
+            else {
+                listReplaceOffset[data->numVecs - offset - 1] = offset;
+            }
+        }
+    }
+
+    auto stream = resources_->getDefaultStreamCurrentDevice();
+
+    if (removeSizeOnGpu > 0) {
+        if (n > removeSizeOnGpu) {
+            listIdsHost.resize(removeSizeOnGpu);
+            listOffsetHost.resize(removeSizeOnGpu);
+            listReplaceOffsetHost.resize(removeSizeOnGpu);
+        }
+
+        if (indicesOptions_ == INDICES_CPU) {
+            for (int i = 0; i < listIdsHost.size(); i++) {
+                int listId = listIdsHost[i];
+
+                if (listId < 0) {
+                    continue;
+                }
+                FAISS_ASSERT(listId < listOffsetToUserIndex_.size());
+                auto& userIndices = listOffsetToUserIndex_[listId];
+
+                int offset = listOffsetHost[i];
+                FAISS_ASSERT(offset >= 0);
+                FAISS_ASSERT(offset < userIndices.size());
+
+                int replaceOffset = listReplaceOffsetHost[i];
+                FAISS_ASSERT(replaceOffset >= 0);
+                FAISS_ASSERT(replaceOffset < userIndices.size());
+
+                userIndices[offset] = userIndices[replaceOffset];
+
+                auto it = indexMap.find(userIndices[replaceOffset]);
+                if (it != indexMap.end()) {
+                    it->second.listId = (uint32_t)listId;
+                    it->second.offset = (uint32_t)offset;
+                }
+            }
+        }
+
+        auto listIdsDevice = toDeviceTemporary(resources_, listIdsHost, stream);
+        auto listOffsetDevice =
+                toDeviceTemporary(resources_, listOffsetHost, stream);
+        auto listReplaceOffsetDevice =
+                toDeviceTemporary(resources_, listReplaceOffsetHost, stream);
+
+        std::vector<Index::idx_t> listIndicesReplaceOffset(removeSizeOnGpu, -1);
+        auto listIndicesReplaceOffsetDevice =
+                toDeviceTemporary(resources_, listIndicesReplaceOffset, stream);
+
+        removeVectors_(
+                listIdsDevice,
+                listOffsetDevice,
+                listReplaceOffsetDevice,
+                listIndicesReplaceOffsetDevice,
+                stream);
+
+        // update map entry for replaced element
+        HostTensor<Index::idx_t, 1, true> listIndicesReplaceOffsetHost(
+                listIndicesReplaceOffsetDevice, stream);
+        for (int i = 0; i < removeSizeOnGpu; i++) {
+            if ((Index::idx_t)listIndicesReplaceOffsetHost[i] != -1) {
+                auto it = indexMap.find(
+                        (Index::idx_t)listIndicesReplaceOffsetHost[i]);
+                if (it != indexMap.end()) {
+                    it->second.listId = (uint32_t)listIdsHost[i];
+                    it->second.offset = (uint32_t)listOffsetHost[i];
+                }
+            }
+        }
+    }
+
+    // We need to resize the data structures for the inverted lists on the GPUs
+    {
+        // Resize all of the lists that we are removed from
+        for (auto& counts : assignCounts) {
+            auto listId = counts.first;
+            int numVecsToRemove = counts.second.size();
+
+            auto& codes = deviceListData_[listId];
+            int oldNumVecs = codes->numVecs;
+            int newNumVecs = codes->numVecs - numVecsToRemove;
+
+            auto newSizeBytes = getGpuVectorsEncodingSize_(newNumVecs);
+            codes->data.resize(newSizeBytes, stream);
+            codes->numVecs = newNumVecs;
+
+            auto& indices = deviceListIndices_[listId];
+            if ((indicesOptions_ == INDICES_32_BIT) ||
+                (indicesOptions_ == INDICES_64_BIT)) {
+                size_t indexSize = (indicesOptions_ == INDICES_32_BIT)
+                        ? sizeof(int)
+                        : sizeof(Index::idx_t);
+                indices->data.resize(
+                        indices->data.size() - numVecsToRemove * indexSize,
+                        stream);
+                FAISS_ASSERT(indices->numVecs == oldNumVecs);
+                indices->numVecs = newNumVecs;
+            } else if (indicesOptions_ == INDICES_CPU) {
+                // indices are stored on the CPU side
+                FAISS_ASSERT(listId < listOffsetToUserIndex_.size());
+
+                auto& userIndices = listOffsetToUserIndex_[listId];
+                userIndices.resize(newNumVecs);
+            } else {
+                // indices are not stored on the GPU or CPU side
+                FAISS_ASSERT(indicesOptions_ == INDICES_IVF);
+            }
+
+            // This is used by the multi-pass query to decide how much scratch
+            // space to allocate for intermediate results
+            maxListLength_ = std::max(maxListLength_, newNumVecs);
+        }
+    }
+
+    // Update all pointers and sizes on the device for lists that we removed
+    // from
+    {
+        std::vector<int> listIds(assignCounts.size());
+        int i = 0;
+        for (auto& counts : assignCounts) {
+            listIds[i++] = counts.first;
+        }
+        updateDeviceListInfo_(listIds, stream);
+    }
+    return removeSize;
+}
+
+void IVFBase::indexMapping(
+        const std::vector<int>& listIds,
+        const std::vector<int>& listOffset,
+        const HostTensor<Index::idx_t, 1, true>& indices) {
+    IVFLocation loc;
+    for (int i = 0; i < listIds.size(); i++) {
+        if (listIds[i] != -1 && listOffset[i] != -1) {
+            loc.listId = (uint32_t)listIds[i];
+            loc.offset = (uint32_t)listOffset[i];
+            indexMap.emplace((Index::idx_t)indices[i], loc);
+        }
+    }
+}
+
+void IVFBase::indexMapping(
+        int listId,
+        const Index::idx_t* indices,
+        size_t numVecs) {
+    IVFLocation loc;
+    for (size_t i = 0; i < numVecs; i++) {
+        loc.listId = (uint32_t)listId;
+        loc.offset = (uint32_t)i;
+        indexMap.emplace(indices[i], loc);
+    }
 }
 
 } // namespace gpu
