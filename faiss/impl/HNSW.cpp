@@ -9,11 +9,17 @@
 
 #include <faiss/impl/HNSW.h>
 
+#include <limits>
 #include <string>
 
 #include <faiss/impl/AuxIndexStructures.h>
 #include <faiss/impl/DistanceComputer.h>
 #include <faiss/impl/IDSelector.h>
+#include <faiss/utils/prefetch.h>
+
+#ifdef __AVX2__
+#include <immintrin.h>
+#endif
 
 namespace faiss {
 
@@ -563,24 +569,84 @@ int search_from_candidates(
         size_t begin, end;
         hnsw.neighbor_range(v0, level, &begin, &end);
 
+        // // baseline version
+        // for (size_t j = begin; j < end; j++) {
+        //     int v1 = hnsw.neighbors[j];
+        //     if (v1 < 0)
+        //         break;
+        //     if (vt.get(v1)) {
+        //         continue;
+        //     }
+        //     vt.set(v1);
+        //     ndis++;
+        //     float d = qdis(v1);
+        //     if (!sel || sel->is_member(v1)) {
+        //         if (nres < k) {
+        //             faiss::maxheap_push(++nres, D, I, d, v1);
+        //         } else if (d < D[0]) {
+        //             faiss::maxheap_replace_top(nres, D, I, d, v1);
+        //         }
+        //     }
+        //     candidates.push(v1, d);
+        // }
+
+        size_t jmax = begin;
         for (size_t j = begin; j < end; j++) {
             int v1 = hnsw.neighbors[j];
             if (v1 < 0)
                 break;
-            if (vt.get(v1)) {
-                continue;
-            }
-            vt.set(v1);
-            ndis++;
-            float d = qdis(v1);
-            if (!sel || sel->is_member(v1)) {
+
+            prefetch_L2(vt.visited.data() + v1);
+            jmax += 1;
+        }
+
+        int counter = 0;
+        size_t saved_j[4];
+
+        ndis += jmax - begin;
+
+        auto add_to_heap = [&](const size_t idx, const float dis) {
+            if (!sel || sel->is_member(idx)) {
                 if (nres < k) {
-                    faiss::maxheap_push(++nres, D, I, d, v1);
-                } else if (d < D[0]) {
-                    faiss::maxheap_replace_top(nres, D, I, d, v1);
+                    faiss::maxheap_push(++nres, D, I, dis, idx);
+                } else if (dis < D[0]) {
+                    faiss::maxheap_replace_top(nres, D, I, dis, idx);
                 }
             }
-            candidates.push(v1, d);
+            candidates.push(idx, dis);
+        };
+
+        for (size_t j = begin; j < jmax; j++) {
+            int v1 = hnsw.neighbors[j];
+
+            bool vget = vt.get(v1);
+            vt.set(v1);
+            saved_j[counter] = v1;
+            counter += vget ? 0 : 1;
+
+            if (counter == 4) {
+                float dis[4];
+                qdis.distances_to_four_indices(
+                        saved_j[0],
+                        saved_j[1],
+                        saved_j[2],
+                        saved_j[3],
+                        dis[0],
+                        dis[1],
+                        dis[2],
+                        dis[3]);
+
+                for (size_t id4 = 0; id4 < 4; id4++) {
+                    add_to_heap(saved_j[id4], dis[id4]);
+                }
+
+                counter = 0;
+            }
+        }
+
+        for (size_t icnt = 0; icnt < counter; icnt++) {
+            float dis = qdis(saved_j[icnt]);
+            add_to_heap(saved_j[icnt], dis);
         }
 
         nstep++;
@@ -630,29 +696,91 @@ std::priority_queue<HNSW::Node> search_from_candidate_unbounded(
         size_t begin, end;
         hnsw.neighbor_range(v0, 0, &begin, &end);
 
-        for (size_t j = begin; j < end; ++j) {
+        // // baseline version
+        // for (size_t j = begin; j < end; ++j) {
+        //     int v1 = hnsw.neighbors[j];
+        //
+        //     if (v1 < 0) {
+        //         break;
+        //     }
+        //     if (vt->get(v1)) {
+        //         continue;
+        //     }
+        //
+        //     vt->set(v1);
+        //
+        //     float d1 = qdis(v1);
+        //     ++ndis;
+        //
+        //     if (top_candidates.top().first > d1 ||
+        //         top_candidates.size() < ef) {
+        //         candidates.emplace(d1, v1);
+        //         top_candidates.emplace(d1, v1);
+        //
+        //         if (top_candidates.size() > ef) {
+        //             top_candidates.pop();
+        //         }
+        //     }
+        // }
+
+        size_t jmax = begin;
+        for (size_t j = begin; j < end; j++) {
             int v1 = hnsw.neighbors[j];
-
-            if (v1 < 0) {
+            if (v1 < 0)
                 break;
-            }
-            if (vt->get(v1)) {
-                continue;
-            }
 
-            vt->set(v1);
+            prefetch_L2(vt->visited.data() + v1);
+            jmax += 1;
+        }
 
-            float d1 = qdis(v1);
-            ++ndis;
+        int counter = 0;
+        size_t saved_j[4];
 
-            if (top_candidates.top().first > d1 || top_candidates.size() < ef) {
-                candidates.emplace(d1, v1);
-                top_candidates.emplace(d1, v1);
+        ndis += jmax - begin;
+
+        auto add_to_heap = [&](const size_t idx, const float dis) {
+            if (top_candidates.top().first > dis ||
+                top_candidates.size() < ef) {
+                candidates.emplace(dis, idx);
+                top_candidates.emplace(dis, idx);
 
                 if (top_candidates.size() > ef) {
                     top_candidates.pop();
                 }
             }
+        };
+
+        for (size_t j = begin; j < jmax; j++) {
+            int v1 = hnsw.neighbors[j];
+
+            bool vget = vt->get(v1);
+            vt->set(v1);
+            saved_j[counter] = v1;
+            counter += vget ? 0 : 1;
+
+            if (counter == 4) {
+                float dis[4];
+                qdis.distances_to_four_indices(
+                        saved_j[0],
+                        saved_j[1],
+                        saved_j[2],
+                        saved_j[3],
+                        dis[0],
+                        dis[1],
+                        dis[2],
+                        dis[3]);
+
+                for (size_t id4 = 0; id4 < 4; id4++) {
+                    add_to_heap(saved_j[id4], dis[id4]);
+                }
+
+                counter = 0;
+            }
+        }
+
+        for (size_t icnt = 0; icnt < counter; icnt++) {
+            float dis = qdis(saved_j[icnt]);
+            add_to_heap(saved_j[icnt], dis);
         }
     }
 
@@ -885,6 +1013,83 @@ void HNSW::MinimaxHeap::clear() {
     nvalid = k = 0;
 }
 
+#ifdef __AVX2__
+int HNSW::MinimaxHeap::pop_min(float* vmin_out) {
+    int32_t min_idx = -1;
+    float min_dis = std::numeric_limits<float>::max();
+
+    size_t iii = 0;
+
+    if (k >= 8) {
+        __m256i min_indices = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+        __m256 min_distances =
+                _mm256_set1_ps(std::numeric_limits<float>::max());
+
+        __m256i current_indices = _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+        __m256i offset = _mm256_set1_epi32(8);
+
+        for (; iii < (k / 8) * 8; iii += 8) {
+            __m256i indices =
+                    _mm256_loadu_si256((const __m256i*)(ids.data() + iii));
+            __m256 distances = _mm256_loadu_ps(dis.data() + iii);
+
+            __m256i m1mask =
+                    _mm256_cmpgt_epi32(_mm256_setzero_si256(), indices);
+            // auto mm = (uint32_t)_mm256_movemask_ps(m1mask);
+            // if (mm == 0xFFFFFFFF)
+            //     continue;
+            __m256 dmask = _mm256_cmp_ps(min_distances, distances, _CMP_LE_OS);
+            __m256i finalmask = _mm256_or_si256(m1mask, dmask);
+
+            const __m256i min_indices_new =
+                    _mm256_castps_si256(_mm256_blendv_ps(
+                            _mm256_castsi256_ps(current_indices),
+                            _mm256_castsi256_ps(min_indices),
+                            finalmask));
+
+            const __m256 min_distances_new =
+                    _mm256_blendv_ps(distances, min_distances, finalmask);
+
+            min_indices = min_indices_new;
+            min_distances = min_distances_new;
+
+            current_indices = _mm256_add_epi32(current_indices, offset);
+        }
+
+        int32_t vidx8[8];
+        float vdis8[8];
+        _mm256_storeu_ps(vdis8, min_distances);
+        _mm256_storeu_si256((__m256i*)vidx8, min_indices);
+
+        for (size_t j = 0; j < 8; j++) {
+            if (min_dis > vdis8[j]) {
+                min_idx = vidx8[j];
+                min_dis = vdis8[j];
+            }
+        }
+    }
+
+    for (; iii < k; iii++) {
+        if (ids[iii] != -1 && dis[iii] < min_dis) {
+            min_dis = dis[iii];
+            min_idx = iii;
+        }
+    }
+
+    if (min_idx == -1) {
+        return -1;
+    }
+
+    if (vmin_out)
+        *vmin_out = min_dis;
+    int ret = ids[min_idx];
+    ids[min_idx] = -1;
+    --nvalid;
+    return ret;
+}
+
+#else
+
 int HNSW::MinimaxHeap::pop_min(float* vmin_out) {
     assert(k > 0);
     // returns min. This is an O(n) operation
@@ -914,6 +1119,7 @@ int HNSW::MinimaxHeap::pop_min(float* vmin_out) {
 
     return ret;
 }
+#endif
 
 int HNSW::MinimaxHeap::count_below(float thresh) {
     int n_below = 0;
