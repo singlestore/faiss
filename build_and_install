@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# If user entered Ctrl-C, kill all subprocesses.
+set -euo pipefail
+trap "pkill -P $$;exit -1" SIGHUP SIGINT SIGTERM
+
+BASE_DIR=$(dirname "$0")
+
+export PATH_TO_MEMSQL=$1
+shift
+export INSTALL_TO=$1
+shift
+
+cd $BASE_DIR
+
+function DoBuild() {
+    local FLAVOR=$1
+    local TARGET=$2
+    rm -rf build
+    cmake -B build . \
+        -DBUILD_TESTING=OFF \
+        -DCMAKE_BUILD_TYPE=$FLAVOR \
+        -DCMAKE_INSTALL_PREFIX=$INSTALL_TO \
+        -DFAISS_ENABLE_GPU=OFF \
+        -DFAISS_ENABLE_PYTHON=OFF
+    make -C build -j faiss
+    make -C build install
+    mv $INSTALL_TO/lib64/libfaiss.a $INSTALL_TO/$TARGET
+    rm -rf $INSTALL_TO/share
+}
+
+DoBuild Debug debug
+DoBuild RelWithDebInfo release
+DoBuild Release production
