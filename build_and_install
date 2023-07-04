@@ -20,6 +20,8 @@ function DoBuild() {
     cmake -B build . \
         -DBUILD_TESTING=OFF \
         -DCMAKE_BUILD_TYPE=$FLAVOR \
+        -DCMAKE_CXX_COMPILER=/usr/local/clang+llvm/bin/clang++ \
+        -DCMAKE_CXX_FLAGS="-Wignored-optimization-argument" \
         -DCMAKE_INSTALL_PREFIX=$INSTALL_TO \
         -DFAISS_ENABLE_GPU=OFF \
         -DFAISS_ENABLE_PYTHON=OFF

@@ -294,10 +294,16 @@ target_compile_definitions(faiss PRIVATE FINTEGER=int)
 target_compile_definitions(faiss_avx2 PRIVATE FINTEGER=int)
 target_compile_definitions(faiss_avx512 PRIVATE FINTEGER=int)
 
-find_package(OpenMP REQUIRED)
-target_link_libraries(faiss PRIVATE OpenMP::OpenMP_CXX)
-target_link_libraries(faiss_avx2 PRIVATE OpenMP::OpenMP_CXX)
-target_link_libraries(faiss_avx512 PRIVATE OpenMP::OpenMP_CXX)
+# Disable OpenMP by providing a stub implementation
+# Handle `#include <omp.h>`.
+target_include_directories(faiss PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/openmp>)
+# Handle `#include <omp.h>`.
+target_include_directories(faiss_avx2 PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/opennp>)
+# Handle `#include <omp.h>`.
+target_include_directories(faiss_avx512 PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/openmp>)
 
 find_package(MKL)
 if(MKL_FOUND)
