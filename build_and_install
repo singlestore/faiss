@@ -16,19 +16,62 @@ cd $BASE_DIR
 function DoBuild() {
     local FLAVOR=$1
     local TARGET=$2
+
     rm -rf build
+
+    # We use Intel's "math kernel library" as a faster drop-in replacement for
+    # BLAS, as recommended by faiss in e.g.
+    # https://github.com/facebookresearch/faiss/blob/main/INSTALL.md.
+    #
+    # Note that the actual install instructions there are simply wrong - there
+    # are a few github issues about it.
+    #
+    # faiss's FindMKL.cmake looks for mkl libs under MKLROOT. Run
+    # 'build_and_install_mkl $PATH_TO_MEMSQL $PATH_TO_MEMSQL/vendor'
+    # to update those libs.
+    #
+    # libfaiss.a doesn't bundle mkl libs or care whether it's using
+    # blass vs mkl, but telling the faiss build about it is useful to
+    # sanity check that we've found the necessary libs, and also to
+    # manually build stuff like faiss tests.
+    #
+    # MKL has "lp64" and "ilp64" variants of its libs. They differ in
+    # whether they expect inputs of some "implementation-defined"
+    # types like `int` to be 64 bit. Our build is lp64, and faiss
+    # doesn't have special logic to override that or something:
+    # (e.g. https://github.com/facebookresearch/faiss/issues/2641).
+    #
+    export MKLROOT=$(readlink -f $BASE_DIR/faiss_mkl_libs)
+
+    # Unsplit and unzip libmkl_core.tar.gz
+    #
+    mkdir -p ${MKLROOT}
+    cp ${INSTALL_TO}/lib/libmkl* ${MKLROOT}
+    cat ${MKLROOT}/libmkl_core.tar.gz* | tar -C ${MKLROOT} -xzf -
+
     cmake -B build . \
-        -DBUILD_TESTING=OFF \
-        -DCMAKE_BUILD_TYPE=$FLAVOR \
-        -DCMAKE_CXX_COMPILER=/usr/local/clang+llvm/bin/clang++ \
-        -DCMAKE_CXX_FLAGS="-Wignored-optimization-argument" \
-        -DCMAKE_INSTALL_PREFIX=$INSTALL_TO \
-        -DFAISS_ENABLE_GPU=OFF \
-        -DFAISS_ENABLE_PYTHON=OFF
-    make -C build -j faiss
-    make -C build install
-    mv $INSTALL_TO/lib64/libfaiss.a $INSTALL_TO/$TARGET
-    rm -rf $INSTALL_TO/share
+              -DBLA_VENDOR=Intel10_64lp_seq \
+              -DMKL_REQUIRED=REQUIRED \
+              -DBUILD_TESTING=OFF \
+              -DCMAKE_BUILD_TYPE=${FLAVOR} \
+              -DCMAKE_CXX_COMPILER=/usr/local/clang+llvm/bin/clang++ \
+              -DCMAKE_CXX_FLAGS="-Wignored-optimization-argument -fno-omit-frame-pointer" \
+              -DCMAKE_INSTALL_PREFIX=./build \
+              -DFAISS_ENABLE_GPU=OFF \
+              -DFAISS_ENABLE_PYTHON=OFF \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DBLA_STATIC=ON \
+              ;
+
+    VERBOSE=1 make -C build -j faiss
+    VERBOSE=1 make -C build install
+
+    cp ./build/lib64/libfaiss.a $INSTALL_TO/$TARGET/libfaiss.a
+    cp -r ./build/include/faiss $INSTALL_TO/include
+
+    VERBOSE=1 make -C build clean
+
+    git rev-parse HEAD > ${INSTALL_TO}/source-git-hashes/faiss.git_hash
 }
 
 DoBuild Debug debug

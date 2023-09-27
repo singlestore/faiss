@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+# Usage: ./build_and_install_mkl $PATH_TO_MEMSQL $PATH_TO_MEMSQL/vendor
+
+# If user entered Ctrl-C, kill all subprocesses.
+set -exuo pipefail
+trap "pkill -P $$;exit -1" SIGHUP SIGINT SIGTERM
+
+BASE_DIR=$(dirname "$0")
+
+export PATH_TO_MEMSQL=$1
+shift
+export INSTALL_TO=$1
+shift
+
+cd $BASE_DIR
+
+MKL_TMP_DIR=$(readlink -f ${BASE_DIR}/mkl_libs)
+echo "Updating MKL requires root access. sudo inside the build container may work out of the box for you, but if it doesn't, run inside memsql-please shell --root."
+
+# We use Intel's "math kernel library" as a faster drop-in replacement for
+# BLAS, as recommended by faiss in e.g.
+# https://github.com/facebookresearch/faiss/blob/main/INSTALL.md.
+#
+# Note that the actual install instructions there are simply wrong - there
+# are a few github issues about it.
+#
+# Since mkl is closed source, we have no better option than to
+# download it. I chose to use the official yum packaging. The separate
+# yum repo that we install stays up to do date with MKL releases, so
+# repeating this later should download the latest release.
+#
+# This is something that should live in a separate memsql-3rdparty
+# repo, but the fact that this method relies on `sudo` makes it
+# awkward to package in the usual way.
+#
+function DownloadLibs() {
+    rm -rf ${MKL_TMP_DIR}
+    mkdir -p ${MKL_TMP_DIR}
+
+    # Per https://www.intel.com/content/www/us/en/docs/oneapi/installation-guide-linux/2023-0/yum-dnf-zypper.html
+    #
+    sudo cp oneAPI.repo /etc/yum.repos.d
+    sudo yum install -y intel-oneapi-mkl-devel.x86_64
+
+    # Save the subset of mkl libs that's relevant to faiss. I got this
+    # list by copying all of them and then looking at what faiss's
+    # build reported chosing.
+    #
+    # Look for `-- Found MKL: [list of linker args including lib
+    # names]` in cmake output.
+    #
+    cp -r /opt/intel/oneapi/mkl/latest/lib/intel64/libmkl_intel_lp64.a ${MKL_TMP_DIR}
+    cp -r /opt/intel/oneapi/mkl/latest/lib/intel64/libmkl_sequential.a ${MKL_TMP_DIR}
+    cp -r /opt/intel/oneapi/mkl/latest/lib/intel64/libmkl_core.a ${MKL_TMP_DIR}
+
+    yum info intel-oneapi-mkl-devel.x86_64 > ${MKL_TMP_DIR}/mkl.yum_version
+}
+
+function LinkFlavor() {
+    local FLAVOR=$1
+    ln -rsf ${INSTALL_TO}/lib/libmkl_intel_lp64.a ${INSTALL_TO}/${FLAVOR}
+    ln -rsf ${INSTALL_TO}/lib/libmkl_sequential.a ${INSTALL_TO}/${FLAVOR}
+    sudo chown --no-dereference --reference=${INSTALL_TO} ${INSTALL_TO}/${FLAVOR}/libmkl_intel_lp64.a
+    sudo chown --no-dereference --reference=${INSTALL_TO} ${INSTALL_TO}/${FLAVOR}/libmkl_sequential.a
+}
+
+DownloadLibs
+
+cp ${MKL_TMP_DIR}/mkl.yum_version ${INSTALL_TO}/source-git-hashes
+sudo chown --reference=${INSTALL_TO} ${INSTALL_TO}/source-git-hashes/mkl.yum_version
+
+cp ${MKL_TMP_DIR}/libmkl_intel_lp64.a ${INSTALL_TO}/lib/
+cp ${MKL_TMP_DIR}/libmkl_sequential.a ${INSTALL_TO}/lib/
+
+# libmkl_core.a is 500MB, but github restricts individual files to
+# 100MB at `git push` time. Tar it up to get the size down to 127MB,
+# and then split it to get each chunk under 100MB. We'll rebuild it
+# into a proper .a during the memsqld build (and GC out most of it at
+# link time).
+#
+tar -C ${MKL_TMP_DIR} -czf - libmkl_core.a | split --bytes=100MB - ${INSTALL_TO}/lib/libmkl_core.tar.gz
+sudo chown --reference=${INSTALL_TO} ${INSTALL_TO}/lib/libmkl_core.tar.gz*
+
+sudo chown --reference=${INSTALL_TO} ${INSTALL_TO}/lib/libmkl_intel_lp64.a
+sudo chown --reference=${INSTALL_TO} ${INSTALL_TO}/lib/libmkl_sequential.a
+
+LinkFlavor debug
+LinkFlavor release
+LinkFlavor production

@@ -300,12 +300,12 @@ target_include_directories(faiss PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/openmp>)
 # Handle `#include <omp.h>`.
 target_include_directories(faiss_avx2 PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/opennp>)
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/openmp>)
 # Handle `#include <omp.h>`.
 target_include_directories(faiss_avx512 PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/openmp>)
 
-find_package(MKL)
+find_package(MKL ${MKL_REQUIRED})
 if(MKL_FOUND)
   target_link_libraries(faiss PRIVATE ${MKL_LIBRARIES})
   target_link_libraries(faiss_avx2 PRIVATE ${MKL_LIBRARIES})
