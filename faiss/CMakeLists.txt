@@ -236,7 +236,15 @@ if(NOT FAISS_OPT_LEVEL STREQUAL "avx2" AND NOT FAISS_OPT_LEVEL STREQUAL "avx512"
   set_target_properties(faiss_avx2 PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()
 if(NOT WIN32)
-  target_compile_options(faiss_avx2 PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-mavx2 -mfma -mf16c -mpopcnt>)
+  # If you conflict here upon rebase, check whether avx2 args have
+  # changed.
+  #
+  # Update `faissCpuFeatures` in main.cpp of the singlestore repo if
+  # they have.
+  #
+  set(FAISS_AVX2_ARGS "-mavx2 -mfma -mf16c -mpopcnt")
+  string(REPLACE " " ";" FAISS_AVX2_ARGS_LIST ${FAISS_AVX2_ARGS})
+  target_compile_options(faiss_avx2 PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${FAISS_AVX2_ARGS_LIST}>)
 else()
   # MSVC enables FMA with /arch:AVX2; no separate flags for F16C, POPCNT
   # Ref. FMA (under /arch:AVX2): https://docs.microsoft.com/en-us/cpp/build/reference/arch-x64

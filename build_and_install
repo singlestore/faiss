@@ -17,7 +17,7 @@ function DoBuild() {
     local FLAVOR=$1
     local TARGET=$2
 
-    rm -rf build
+    rm -rf build_$FLAVOR
 
     # We use Intel's "math kernel library" as a faster drop-in replacement for
     # BLAS, as recommended by faiss in e.g.
@@ -49,27 +49,29 @@ function DoBuild() {
     cp ${INSTALL_TO}/lib/libmkl* ${MKLROOT}
     cat ${MKLROOT}/libmkl_core.tar.gz* | tar -C ${MKLROOT} -xzf -
 
-    cmake -B build . \
+    cmake -B build_$FLAVOR . \
               -DBLA_VENDOR=Intel10_64lp_seq \
               -DMKL_REQUIRED=REQUIRED \
               -DBUILD_TESTING=OFF \
               -DCMAKE_BUILD_TYPE=${FLAVOR} \
               -DCMAKE_CXX_COMPILER=/usr/local/clang+llvm/bin/clang++ \
               -DCMAKE_CXX_FLAGS="-Wignored-optimization-argument -fno-omit-frame-pointer" \
-              -DCMAKE_INSTALL_PREFIX=./build \
+              -DFAISS_OPT_LEVEL=avx2 \
+              -DCMAKE_INSTALL_PREFIX=./build_$FLAVOR \
               -DFAISS_ENABLE_GPU=OFF \
               -DFAISS_ENABLE_PYTHON=OFF \
-              -DBUILD_SHARED_LIBS=OFF \
-              -DBLA_STATIC=ON \
+              -DBUILD_SHARED_LIBS=ON \
+              -DBLA_STATIC=OFF \
               ;
 
-    VERBOSE=1 make -C build -j faiss
-    VERBOSE=1 make -C build install
+    VERBOSE=1 make -C build_$FLAVOR -j faiss
+    VERBOSE=1 make -C build_$FLAVOR install
 
-    cp ./build/lib64/libfaiss.a $INSTALL_TO/$TARGET/libfaiss.a
-    cp -r ./build/include/faiss $INSTALL_TO/include
+    cp ./build_$FLAVOR/lib64/libfaiss.so $INSTALL_TO/$TARGET/libfaiss.so
+    cp ./build_$FLAVOR/lib64/libfaiss_avx2.so $INSTALL_TO/$TARGET/libfaiss_avx2.so
+    cp -r ./build_$FLAVOR/include/faiss $INSTALL_TO/include
 
-    VERBOSE=1 make -C build clean
+    VERBOSE=1 make -C build_$FLAVOR clean
 
     git rev-parse HEAD > ${INSTALL_TO}/source-git-hashes/faiss.git_hash
 }

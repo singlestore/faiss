@@ -16,7 +16,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include <omp.h>
+#include <faiss/omp.h>
 
 #include <faiss/Index.h>
 #include <faiss/impl/FaissAssert.h>

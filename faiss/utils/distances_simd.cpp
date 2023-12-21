@@ -37,6 +37,16 @@ namespace faiss {
 #define USE_AVX
 #endif
 
+bool AVX2Enabled()
+{
+#ifdef __AVX2__
+    return true;
+#else
+    return false;
+#endif
+}
+
+
 /*********************************************************
  * Optimized distance computations
  *********************************************************/
