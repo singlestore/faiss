@@ -373,6 +373,15 @@ void IndexHNSW::range_search(
         float radius,
         RangeSearchResult* result,
         const SearchParameters* params) const {
+    // Since we use NegativeDistanceComputer for similarity search and include a result if 
+    // distance < radius, the inequality is effectively changed from (distance > radius) 
+    // to (-distance < -radius).
+    //
+    if (is_similarity_metric(this->metric_type))
+    {
+        radius = -radius;
+    }
+
     using RH = RangeSearchBlockResultHandler<HNSW::C>;
     RH bres(result, radius);
 
