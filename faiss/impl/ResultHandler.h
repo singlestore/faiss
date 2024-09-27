@@ -501,11 +501,11 @@ struct RangeSearchBlockResultHandler : BlockResultHandler<C> {
         }
 
         /// series of results for query i is done
-        void end() {}
-
-        ~SingleResultHandler() {
+        void end() {
             pres.finalize();
         }
+
+        ~SingleResultHandler() {}
     };
 
     /******************************************************
