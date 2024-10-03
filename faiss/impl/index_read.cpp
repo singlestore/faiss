@@ -57,6 +57,11 @@
 #include <faiss/IndexBinaryHash.h>
 #include <faiss/IndexBinaryIVF.h>
 
+// Used to assert that this code path is never triggered. 
+// If it needs to be used, any potential memory leak in that code path must be fixed.
+//
+#define ASSERT_FALSE assert(false)
+
 namespace faiss {
 
 /*************************************************************
@@ -743,6 +748,7 @@ Index* read_index(IOReader* f, int io_flags) {
         ivaqfs->init_code_packer();
         idx = ivaqfs;
     } else if (h == fourcc("IvFl") || h == fourcc("IvFL")) { // legacy
+        ASSERT_FALSE;
         IndexIVFFlat* ivfl = new IndexIVFFlat();
         std::vector<std::vector<idx_t>> ids;
         read_ivf_header(ivfl, f, &ids);
@@ -872,6 +878,7 @@ Index* read_index(IOReader* f, int io_flags) {
             h == fourcc("IwQR")) {
         idx = read_ivfpq(f, h, io_flags);
     } else if (h == fourcc("IwIQ")) {
+        ASSERT_FALSE;
         auto* indep = new IndexIVFIndependentQuantizer();
         indep->own_fields = true;
         read_index_header(indep, f);
@@ -908,6 +915,7 @@ Index* read_index(IOReader* f, int io_flags) {
         read_ProductQuantizer(&imiq->pq, f);
         idx = imiq;
     } else if (h == fourcc("IxRF")) {
+        ASSERT_FALSE;
         IndexRefine* idxrf = new IndexRefine();
         read_index_header(idxrf, f);
         idxrf->base_index = read_index(f, io_flags);
