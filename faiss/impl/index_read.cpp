@@ -550,7 +550,6 @@ Index* read_index(IOReader* f, int io_flags) {
         READXBVECTOR(idxf->codes);
         FAISS_THROW_IF_NOT(
                 idxf->codes.size() == idxf->ntotal * idxf->code_size);
-        // leak!
         idx = idxf.release();
     } else if (h == fourcc("IxHE") || h == fourcc("IxHe")) {
         IndexLSH* idxl = new IndexLSH();
