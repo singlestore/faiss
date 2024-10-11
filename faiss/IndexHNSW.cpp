@@ -268,8 +268,11 @@ void hnsw_add_vertices(
 IndexHNSW::IndexHNSW(int d, int M, MetricType metric)
         : Index(d, metric), hnsw(M) {}
 
-IndexHNSW::IndexHNSW(Index* storage, int M)
-        : Index(storage->d, storage->metric_type), hnsw(M), storage(storage) {}
+IndexHNSW::IndexHNSW(std::unique_ptr<Index> storage, int M)
+        : Index(storage->d, storage->metric_type), hnsw(M), storage(storage.get())
+{
+    storage.release();
+}
 
 IndexHNSW::~IndexHNSW() {
     if (own_fields) {
@@ -669,8 +672,8 @@ IndexHNSWFlat::IndexHNSWFlat() {
 
 IndexHNSWFlat::IndexHNSWFlat(int d, int M, MetricType metric)
         : IndexHNSW(
-                  (metric == METRIC_L2) ? new IndexFlatL2(d)
-                                        : new IndexFlat(d, metric),
+                  (metric == METRIC_L2) ? std::unique_ptr<IndexFlatL2>(new IndexFlatL2(d))
+                                        : std::unique_ptr<IndexFlat>(new IndexFlat(d, metric)),
                   M) {
     own_fields = true;
     is_trained = true;
@@ -683,7 +686,7 @@ IndexHNSWFlat::IndexHNSWFlat(int d, int M, MetricType metric)
 IndexHNSWPQ::IndexHNSWPQ() = default;
 
 IndexHNSWPQ::IndexHNSWPQ(int d, int pq_m, int M, int pq_nbits)
-        : IndexHNSW(new IndexPQ(d, pq_m, pq_nbits), M) {
+        : IndexHNSW(std::unique_ptr<IndexPQ>(new IndexPQ(d, pq_m, pq_nbits)), M) {
     own_fields = true;
     is_trained = false;
 }
@@ -702,7 +705,7 @@ IndexHNSWSQ::IndexHNSWSQ(
         ScalarQuantizer::QuantizerType qtype,
         int M,
         MetricType metric)
-        : IndexHNSW(new IndexScalarQuantizer(d, qtype, metric), M) {
+        : IndexHNSW(std::unique_ptr<IndexScalarQuantizer>(new IndexScalarQuantizer(d, qtype, metric)), M) {
     is_trained = this->storage->is_trained;
     own_fields = true;
 }
@@ -718,7 +721,7 @@ IndexHNSW2Level::IndexHNSW2Level(
         size_t nlist,
         int m_pq,
         int M)
-        : IndexHNSW(new Index2Layer(quantizer, nlist, m_pq), M) {
+        : IndexHNSW(std::unique_ptr<Index2Layer>(new Index2Layer(quantizer, nlist, m_pq)), M) {
     own_fields = true;
     is_trained = false;
 }

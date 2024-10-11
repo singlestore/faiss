@@ -35,7 +35,7 @@ struct IndexHNSW : Index {
     Index* storage = nullptr;
 
     explicit IndexHNSW(int d = 0, int M = 32, MetricType metric = METRIC_L2);
-    explicit IndexHNSW(Index* storage, int M = 32);
+    explicit IndexHNSW(std::unique_ptr<Index> storage, int M = 32);
 
     ~IndexHNSW() override;
 
