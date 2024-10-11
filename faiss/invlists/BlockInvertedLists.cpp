@@ -13,6 +13,7 @@
 #include <faiss/impl/io.h>
 #include <faiss/impl/io_macros.h>
 
+#include <memory>
 namespace faiss {
 
 BlockInvertedLists::BlockInvertedLists(
@@ -140,7 +141,7 @@ void BlockInvertedListsIOHook::write(const InvertedLists* ils_in, IOWriter* f)
 
 InvertedLists* BlockInvertedListsIOHook::read(IOReader* f, int /* io_flags */)
         const {
-    BlockInvertedLists* il = new BlockInvertedLists();
+    std::unique_ptr<BlockInvertedLists> il = std::make_unique<BlockInvertedLists>();
     READ1(il->nlist);
     READ1(il->code_size);
     READ1(il->n_per_block);
@@ -154,7 +155,7 @@ InvertedLists* BlockInvertedListsIOHook::read(IOReader* f, int /* io_flags */)
         READVECTOR(il->codes[i]);
     }
 
-    return il;
+    return il.release();
 }
 
 } // namespace faiss
