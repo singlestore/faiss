@@ -34,9 +34,13 @@ namespace {
 struct IOHookTable : std::vector<InvertedListsIOHook*> {
     IOHookTable() {
 #ifndef _MSC_VER
-        push_back(new OnDiskInvertedListsIOHook());
+        std::unique_ptr<OnDiskInvertedListsIOHook> onDiskHook(new OnDiskInvertedListsIOHook());
+        push_back(onDiskHook.get());
+        onDiskHook.release();
 #endif
-        push_back(new BlockInvertedListsIOHook());
+        std::unique_ptr<BlockInvertedListsIOHook> blockIOHook(new BlockInvertedListsIOHook());
+        push_back(blockIOHook.get());
+        blockIOHook.release();
     }
 
     ~IOHookTable() {
