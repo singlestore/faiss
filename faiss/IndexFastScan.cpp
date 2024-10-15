@@ -98,8 +98,8 @@ void IndexFastScan::add(idx_t n, const float* x) {
     ntotal += n;
 }
 
-CodePacker* IndexFastScan::get_CodePacker() const {
-    return new CodePackerPQ4(M, bbs);
+std::unique_ptr<CodePacker> IndexFastScan::get_CodePacker() const {
+    return std::unique_ptr<CodePackerPQ4>(new CodePackerPQ4(M, bbs));
 }
 
 size_t IndexFastScan::remove_ids(const IDSelector& sel) {

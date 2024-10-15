@@ -214,7 +214,7 @@ struct IndexIVFFastScan : IndexIVF {
     void reconstruct_from_offset(int64_t list_no, int64_t offset, float* recons)
             const override;
 
-    CodePacker* get_CodePacker() const override;
+    std::unique_ptr<CodePacker> get_CodePacker() const override;
 
     // reconstruct orig invlists (for debugging)
     void reconstruct_orig_invlists();

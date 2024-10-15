@@ -40,7 +40,7 @@ struct BlockInvertedLists : InvertedLists {
     std::vector<std::vector<idx_t>> ids;
 
     BlockInvertedLists(size_t nlist, size_t vec_per_block, size_t block_size);
-    BlockInvertedLists(size_t nlist, const CodePacker* packer);
+    BlockInvertedLists(size_t nlist, std::unique_ptr<CodePacker> packer);
 
     BlockInvertedLists();
 
