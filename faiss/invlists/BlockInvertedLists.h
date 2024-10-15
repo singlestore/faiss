@@ -34,7 +34,7 @@ struct BlockInvertedLists : InvertedLists {
     size_t block_size = 0;  // nb bytes per block
 
     // required to interpret the content of the blocks (owned by this)
-    CodePacker* packer = nullptr;
+    const CodePacker* packer = nullptr;
 
     std::vector<AlignedTable<uint8_t>> codes;
     std::vector<std::vector<idx_t>> ids;
