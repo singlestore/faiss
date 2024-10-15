@@ -100,7 +100,7 @@ void IndexFlatCodes::merge_from(Index& otherIndex, idx_t add_id) {
 }
 
 std::unique_ptr<CodePacker> IndexFlatCodes::get_CodePacker() const {
-    return std::unique_ptr<CodePackerFlat>(new CodePackerFlat(code_size));
+    return std::unique_ptr<CodePacker>(new CodePackerFlat(code_size));
 }
 
 void IndexFlatCodes::permute_entries(const idx_t* perm) {

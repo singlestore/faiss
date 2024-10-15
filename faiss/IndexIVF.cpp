@@ -1226,7 +1226,7 @@ void IndexIVF::merge_from(Index& otherIndex, idx_t add_id) {
 }
 
 std::unique_ptr<CodePacker> IndexIVF::get_CodePacker() const {
-    return std::unique_ptr<CodePackerFlat>(new CodePackerFlat(code_size));
+    return std::unique_ptr<CodePacker>(new CodePackerFlat(code_size));
 }
 
 void IndexIVF::replace_invlists(InvertedLists* il, bool own) {
