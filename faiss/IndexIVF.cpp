@@ -884,6 +884,18 @@ void IndexIVF::range_search_preassigned(
         } else {
             FAISS_THROW_FMT("parallel_mode %d not supported\n", parallel_mode);
         }
+
+        // In case an exception is caught, handle the interrupt right after 
+        // returning from the `scan_list_func` lambda.
+        //
+        if (interrupt) {
+            if (!exception_string.empty()) {
+                FAISS_THROW_FMT(
+                        "search interrupted with: %s", exception_string.c_str());
+            } else {
+                FAISS_THROW_MSG("computation interrupted");
+            }
+        }
         if (parallel_mode == 0) {
             pres.finalize();
         } else {
@@ -891,15 +903,6 @@ void IndexIVF::range_search_preassigned(
 #pragma omp single
             RangeSearchPartialResult::merge(all_pres, false);
 #pragma omp barrier
-        }
-    }
-
-    if (interrupt) {
-        if (!exception_string.empty()) {
-            FAISS_THROW_FMT(
-                    "search interrupted with: %s", exception_string.c_str());
-        } else {
-            FAISS_THROW_MSG("computation interrupted");
         }
     }
 

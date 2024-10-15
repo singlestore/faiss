@@ -81,9 +81,13 @@ void BufferList::add(idx_t id, float dis) {
 }
 
 void BufferList::append_buffer() {
-    Buffer buf = {new idx_t[buffer_size], new float[buffer_size]};
+    std::unique_ptr<idx_t[]> ids(new idx_t[buffer_size]);
+    std::unique_ptr<float[]> dis(new float[buffer_size]);
+    Buffer buf = {ids.get(), dis.get()};
     buffers.push_back(buf);
     wp = 0;
+    ids.release();
+    dis.release();
 }
 
 /// copy elemnts ofs:ofs+n-1 seen as linear data in the buffers to

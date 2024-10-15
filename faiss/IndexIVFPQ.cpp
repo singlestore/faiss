@@ -249,10 +249,9 @@ void IndexIVFPQ::add_core_o(
     if (precomputed_idx) {
         idx = precomputed_idx;
     } else {
-        idx_t* idx0 = new idx_t[n];
-        del_idx.reset(idx0);
-        quantizer->assign(n, x, idx0);
-        idx = idx0;
+        del_idx = std::unique_ptr<idx_t[]>(new idx_t[n]);
+        quantizer->assign(n, x, del_idx.get());
+        idx = del_idx.get();
     }
 
     double t1 = getmillisecs();
