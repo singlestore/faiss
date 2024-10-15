@@ -272,6 +272,7 @@ IndexHNSW::IndexHNSW(std::unique_ptr<Index> storage, int M)
         : Index(storage->d, storage->metric_type), hnsw(M), storage(storage.get())
 {
     storage.release();
+    own_fields = true;
 }
 
 IndexHNSW::~IndexHNSW() {
@@ -675,7 +676,6 @@ IndexHNSWFlat::IndexHNSWFlat(int d, int M, MetricType metric)
                   (metric == METRIC_L2) ? std::unique_ptr<IndexFlatL2>(new IndexFlatL2(d))
                                         : std::unique_ptr<IndexFlat>(new IndexFlat(d, metric)),
                   M) {
-    own_fields = true;
     is_trained = true;
 }
 
@@ -687,7 +687,6 @@ IndexHNSWPQ::IndexHNSWPQ() = default;
 
 IndexHNSWPQ::IndexHNSWPQ(int d, int pq_m, int M, int pq_nbits)
         : IndexHNSW(std::unique_ptr<IndexPQ>(new IndexPQ(d, pq_m, pq_nbits)), M) {
-    own_fields = true;
     is_trained = false;
 }
 
@@ -707,7 +706,6 @@ IndexHNSWSQ::IndexHNSWSQ(
         MetricType metric)
         : IndexHNSW(std::unique_ptr<IndexScalarQuantizer>(new IndexScalarQuantizer(d, qtype, metric)), M) {
     is_trained = this->storage->is_trained;
-    own_fields = true;
 }
 
 IndexHNSWSQ::IndexHNSWSQ() = default;
@@ -722,7 +720,6 @@ IndexHNSW2Level::IndexHNSW2Level(
         int m_pq,
         int M)
         : IndexHNSW(std::unique_ptr<Index2Layer>(new Index2Layer(quantizer, nlist, m_pq)), M) {
-    own_fields = true;
     is_trained = false;
 }
 
