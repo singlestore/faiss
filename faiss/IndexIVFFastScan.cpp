@@ -192,7 +192,7 @@ CodePacker* IndexIVFFastScan::get_CodePacker() const {
     return new CodePackerPQ4(M, bbs);
 }
 
-std::unique_ptr<CodePacker> IndexIVFFastScan::get_CodePackerPtr() const {
+std::unique_ptr<CodePacker> IndexIVFFastScan::get_CodePackerPtr() {
     return std::unique_ptr<CodePacker>(new CodePackerPQ4(M, bbs));
 }
 

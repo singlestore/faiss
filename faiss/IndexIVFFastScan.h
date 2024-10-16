@@ -215,7 +215,7 @@ struct IndexIVFFastScan : IndexIVF {
             const override;
 
     CodePacker* get_CodePacker() const override;
-    std::unique_ptr<CodePacker> get_CodePackerPtr() const;
+    std::unique_ptr<CodePacker> get_CodePackerPtr();
 
     // reconstruct orig invlists (for debugging)
     void reconstruct_orig_invlists();
