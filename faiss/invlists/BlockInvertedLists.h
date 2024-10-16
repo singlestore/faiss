@@ -41,6 +41,7 @@ struct BlockInvertedLists : InvertedLists {
 
     BlockInvertedLists(size_t nlist, size_t vec_per_block, size_t block_size);
     BlockInvertedLists(size_t nlist, CodePacker* packer);
+    BlockInvertedLists(size_t nlist, std::unique_ptr<CodePacker> packer);
 
     BlockInvertedLists();
 

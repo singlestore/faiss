@@ -36,6 +36,16 @@ BlockInvertedLists::BlockInvertedLists(size_t nlist, CodePacker* packer)
     codes.resize(nlist);
 }
 
+BlockInvertedLists::BlockInvertedLists(size_t nlist, std::unique_ptr<CodePacker> codePacker)
+        : InvertedLists(nlist, InvertedLists::INVALID_CODE_SIZE),
+          n_per_block(codePacker->nvec),
+          block_size(codePacker->block_size),
+          packer(codePacker.get()) {
+    codePacker.release();
+    ids.resize(nlist);
+    codes.resize(nlist);
+}
+
 BlockInvertedLists::BlockInvertedLists()
         : InvertedLists(0, InvertedLists::INVALID_CODE_SIZE) {}
 
