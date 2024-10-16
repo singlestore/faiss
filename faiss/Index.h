@@ -20,6 +20,11 @@
 #define FAISS_VERSION_MINOR 8
 #define FAISS_VERSION_PATCH 0
 
+// Used to assert that this code path is never triggered. 
+// If it needs to be used, any potential memory leak in that code path must be fixed.
+//
+#define ASSERT_FALSE assert(false)
+
 /**
  * @namespace faiss
  *

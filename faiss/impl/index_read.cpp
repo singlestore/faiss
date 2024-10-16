@@ -57,11 +57,6 @@
 #include <faiss/IndexBinaryHash.h>
 #include <faiss/IndexBinaryIVF.h>
 
-// Used to assert that this code path is never triggered. 
-// If it needs to be used, any potential memory leak in that code path must be fixed.
-//
-#define ASSERT_FALSE assert(false)
-
 namespace faiss {
 
 /*************************************************************
