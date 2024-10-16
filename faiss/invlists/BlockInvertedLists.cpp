@@ -27,7 +27,7 @@ BlockInvertedLists::BlockInvertedLists(
     codes.resize(nlist);
 }
 
-BlockInvertedLists::BlockInvertedLists(size_t nlist, const CodePacker* packer)
+BlockInvertedLists::BlockInvertedLists(size_t nlist, CodePacker* packer)
         : InvertedLists(nlist, InvertedLists::INVALID_CODE_SIZE),
           n_per_block(packer->nvec),
           block_size(packer->block_size),
