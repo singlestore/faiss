@@ -1225,7 +1225,7 @@ void IndexIVF::merge_from(Index& otherIndex, idx_t add_id) {
     other->ntotal = 0;
 }
 
-CodePacker* IndexIVF::get_CodePacker() const {
+CodePacker* IndexIVF::get_CodePacker() {
     return new CodePackerFlat(code_size);
 }
 

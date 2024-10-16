@@ -98,7 +98,7 @@ void IndexFastScan::add(idx_t n, const float* x) {
     ntotal += n;
 }
 
-CodePacker* IndexFastScan::get_CodePacker() const {
+CodePacker* IndexFastScan::get_CodePacker() {
     return new CodePackerPQ4(M, bbs);
 }
 

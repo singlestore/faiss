@@ -99,7 +99,7 @@ void IndexFlatCodes::merge_from(Index& otherIndex, idx_t add_id) {
     other->reset();
 }
 
-CodePacker* IndexFlatCodes::get_CodePacker() const {
+CodePacker* IndexFlatCodes::get_CodePacker() {
     return new CodePackerFlat(code_size);
 }
 

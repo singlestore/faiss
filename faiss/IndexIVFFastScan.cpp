@@ -188,7 +188,7 @@ void IndexIVFFastScan::add_with_ids(
     ntotal += n;
 }
 
-CodePacker* IndexIVFFastScan::get_CodePacker() const {
+CodePacker* IndexIVFFastScan::get_CodePacker() {
     return new CodePackerPQ4(M, bbs);
 }
 

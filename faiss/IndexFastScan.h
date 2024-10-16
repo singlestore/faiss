@@ -129,7 +129,7 @@ struct IndexFastScan : Index {
     void reconstruct(idx_t key, float* recons) const override;
     size_t remove_ids(const IDSelector& sel) override;
 
-    CodePacker* get_CodePacker() const;
+    CodePacker* get_CodePacker();
 
     void merge_from(Index& otherIndex, idx_t add_id = 0) override;
     void check_compatible_for_merge(const Index& otherIndex) const override;

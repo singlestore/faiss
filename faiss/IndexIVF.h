@@ -399,7 +399,7 @@ struct IndexIVF : Index, IndexIVFInterface {
     virtual void merge_from(Index& otherIndex, idx_t add_id) override;
 
     // returns a new instance of a CodePacker
-    virtual CodePacker* get_CodePacker() const;
+    virtual CodePacker* get_CodePacker();
 
     /** copy a subset of the entries index to the other index
      * see Invlists::copy_subset_to for the meaning of subset_type

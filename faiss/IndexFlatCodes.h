@@ -53,7 +53,7 @@ struct IndexFlatCodes : Index {
     }
 
     // returns a new instance of a CodePacker
-    CodePacker* get_CodePacker() const;
+    CodePacker* get_CodePacker();
 
     void check_compatible_for_merge(const Index& otherIndex) const override;
 
