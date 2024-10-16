@@ -188,10 +188,6 @@ void IndexIVFFastScan::add_with_ids(
     ntotal += n;
 }
 
-CodePacker* IndexIVFFastScan::get_CodePacker() {
-    return new CodePackerPQ4(M, bbs);
-}
-
 std::unique_ptr<CodePacker> IndexIVFFastScan::get_CodePackerPtr() {
     return std::unique_ptr<CodePacker>(new CodePackerPQ4(M, bbs));
 }

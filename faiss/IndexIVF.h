@@ -399,7 +399,6 @@ struct IndexIVF : Index, IndexIVFInterface {
     virtual void merge_from(Index& otherIndex, idx_t add_id) override;
 
     // returns a new instance of a CodePacker
-    virtual CodePacker* get_CodePacker();
     virtual std::unique_ptr<CodePacker> get_CodePackerPtr();
 
     /** copy a subset of the entries index to the other index
