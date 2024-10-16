@@ -13,7 +13,6 @@
 #include <faiss/impl/io.h>
 #include <faiss/impl/io_macros.h>
 
-#include <memory>
 namespace faiss {
 
 BlockInvertedLists::BlockInvertedLists(

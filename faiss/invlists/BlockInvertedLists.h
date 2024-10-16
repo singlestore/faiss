@@ -11,6 +11,7 @@
 #include <faiss/invlists/InvertedLists.h>
 #include <faiss/invlists/InvertedListsIOHook.h>
 #include <faiss/utils/AlignedTable.h>
+#include <memory>
 
 namespace faiss {
 
