@@ -79,7 +79,7 @@ void IndexIVFFastScan::init_code_packer() {
     auto bil = dynamic_cast<BlockInvertedLists*>(invlists);
     FAISS_THROW_IF_NOT(bil);
     delete bil->packer; // in case there was one before
-    bil->packer = get_CodePacker();
+    bil->packer = get_CodePackerPtr().release();
 }
 
 IndexIVFFastScan::~IndexIVFFastScan() = default;
