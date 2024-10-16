@@ -100,6 +100,7 @@ void IndexFlatCodes::merge_from(Index& otherIndex, idx_t add_id) {
 }
 
 CodePacker* IndexFlatCodes::get_CodePacker() {
+    ASSERT_FALSE;
     return new CodePackerFlat(code_size);
 }
 

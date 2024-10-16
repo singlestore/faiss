@@ -99,6 +99,7 @@ void IndexFastScan::add(idx_t n, const float* x) {
 }
 
 CodePacker* IndexFastScan::get_CodePacker() {
+    ASSERT_FALSE;
     return new CodePackerPQ4(M, bbs);
 }
 
