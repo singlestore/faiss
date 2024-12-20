@@ -416,6 +416,10 @@ struct IndexIVF : Index, IndexIVFInterface {
         return invlists->list_size(list_no);
     }
 
+    idx_t get_ntotal() const {
+        return ntotal;
+    }
+
     /// are the ids sorted?
     bool check_ids_sorted() const;
 
