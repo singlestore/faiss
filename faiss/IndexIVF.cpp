@@ -298,6 +298,7 @@ void IndexIVF::search(
         float* distances,
         idx_t* labels,
         const SearchParameters* params_in) const {
+    printf("   IndexIVF::search ntotal %" PRId64 "\n", ntotal);
     FAISS_THROW_IF_NOT(k > 0);
     const IVFSearchParameters* params = nullptr;
     if (params_in) {
