@@ -299,6 +299,15 @@ void IndexIVF::search(
         idx_t* labels,
         const SearchParameters* params_in) const {
     fprintf(stderr, "   IndexIVF::search ntotal %" PRId64 "\n", ntotal);
+    {
+        FILE *file = fopen("ntotal.txt", "w");
+        if (file == NULL) {
+            perror("Error creating file");
+        } else {
+            fprintf(file, "   IndexIVF::search ntotal %" PRId64 "\n", ntotal);
+            fclose(file);
+        }
+    }
     FAISS_THROW_IF_NOT(k > 0);
     const IVFSearchParameters* params = nullptr;
     if (params_in) {
