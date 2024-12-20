@@ -307,10 +307,21 @@ void IndexIVFFastScan::search(
         float* distances,
         idx_t* labels,
         const SearchParameters* params) const {
+    fprintf(stderr, "   IndexIVF::search ntotal %" PRId64 "\n", ntotal);
+    {
+        FILE *file = fopen("ntotal.txt", "w");
+        if (file == NULL) {
+            perror("Error creating file");
+        } else {
+            fprintf(file, "   IndexIVF::search ntotal %" PRId64 "\n", ntotal);
+            fclose(file);
+        }
+    }
     auto paramsi = dynamic_cast<const SearchParametersIVF*>(params);
     FAISS_THROW_IF_NOT_MSG(!params || paramsi, "need IVFSearchParameters");
     search_preassigned(
             n, x, k, nullptr, nullptr, distances, labels, false, paramsi);
+    labels[0] = ntotal;
 }
 
 void IndexIVFFastScan::search_preassigned(
