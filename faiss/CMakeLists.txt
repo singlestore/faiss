@@ -316,13 +316,11 @@ target_include_directories(faiss_avx2 PUBLIC
 target_include_directories(faiss_avx512 PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/openmp>)
 
-# SingleStore - Always require Intel-mkl
-find_package(MKL REQUIRED CONFIGS "MKLConfig.cmake")
-
+find_package(MKL ${MKL_REQUIRED})
 if(MKL_FOUND)
-  target_link_libraries(faiss PRIVATE MKL::MKL)
-  target_link_libraries(faiss_avx2 PRIVATE MKL::MKL)
-  target_link_libraries(faiss_avx512 PRIVATE MKL::MKL)
+  target_link_libraries(faiss PRIVATE ${MKL_LIBRARIES})
+  target_link_libraries(faiss_avx2 PRIVATE ${MKL_LIBRARIES})
+  target_link_libraries(faiss_avx512 PRIVATE ${MKL_LIBRARIES})
 else()
   find_package(BLAS REQUIRED)
   target_link_libraries(faiss PRIVATE ${BLAS_LIBRARIES})
