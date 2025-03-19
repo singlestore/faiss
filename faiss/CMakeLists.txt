@@ -317,22 +317,29 @@ target_include_directories(faiss_avx512 PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/openmp>)
 
 # SingleStore - Always require Intel-mkl
-find_package(MKL REQUIRED CONFIGS "MKLConfig.cmake")
+find_package(MKL ${MKL_REQUIRED} CONFIGS "MKLConfig.cmake")
 
+# Note the use of INTERFACE here. We build faiss.so shared and don't link MKL or OpenBLAS into it,
+# but rather cause anything that links against a faiss target to link against MKL/OpenBLAS. At least
+# MKL is pretty big, we don't want to load it into memory twice when we LD_PRELOAD faiss_avx2.so
+# over faiss.so.
+#
+# We use MKL::MKL because that respects static linkage - ${MKL_LIBRARIES} doesn't seem to.
+#
 if(MKL_FOUND)
-  target_link_libraries(faiss PRIVATE MKL::MKL)
-  target_link_libraries(faiss_avx2 PRIVATE MKL::MKL)
-  target_link_libraries(faiss_avx512 PRIVATE MKL::MKL)
+  target_link_libraries(faiss INTERFACE MKL::MKL)
+  target_link_libraries(faiss_avx2 INTERFACE MKL::MKL)
+  target_link_libraries(faiss_avx512 INTERFACE MKL::MKL)
 else()
   find_package(BLAS REQUIRED)
-  target_link_libraries(faiss PRIVATE ${BLAS_LIBRARIES})
-  target_link_libraries(faiss_avx2 PRIVATE ${BLAS_LIBRARIES})
-  target_link_libraries(faiss_avx512 PRIVATE ${BLAS_LIBRARIES})
+  target_link_libraries(faiss INTERFACE ${BLAS_LIBRARIES})
+  target_link_libraries(faiss_avx2 INTERFACE ${BLAS_LIBRARIES})
+  target_link_libraries(faiss_avx512 INTERFACE ${BLAS_LIBRARIES})
 
   find_package(LAPACK REQUIRED)
-  target_link_libraries(faiss PRIVATE ${LAPACK_LIBRARIES})
-  target_link_libraries(faiss_avx2 PRIVATE ${LAPACK_LIBRARIES})
-  target_link_libraries(faiss_avx512 PRIVATE ${LAPACK_LIBRARIES})
+  target_link_libraries(faiss INTERFACE ${LAPACK_LIBRARIES})
+  target_link_libraries(faiss_avx2 INTERFACE ${LAPACK_LIBRARIES})
+  target_link_libraries(faiss_avx512 INTERFACE ${LAPACK_LIBRARIES})
 endif()
 
 install(TARGETS faiss
