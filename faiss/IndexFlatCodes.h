@@ -11,6 +11,7 @@
 
 #include <faiss/Index.h>
 #include <faiss/impl/DistanceComputer.h>
+#include <memory>
 #include <vector>
 
 namespace faiss {
@@ -53,7 +54,7 @@ struct IndexFlatCodes : Index {
     }
 
     // returns a new instance of a CodePacker
-    CodePacker* get_CodePacker() const;
+    std::unique_ptr<CodePacker> get_CodePacker() const;
 
     void check_compatible_for_merge(const Index& otherIndex) const override;
 
