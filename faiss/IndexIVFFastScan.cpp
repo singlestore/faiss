@@ -72,7 +72,7 @@ void IndexIVFFastScan::init_fastscan(
     code_size = M2 / 2;
 
     is_trained = false;
-    replace_invlists(new BlockInvertedLists(nlist, get_CodePacker().release()), true);
+    replace_invlists(new BlockInvertedLists(nlist, get_CodePacker()), true);
 }
 
 void IndexIVFFastScan::init_code_packer() {
