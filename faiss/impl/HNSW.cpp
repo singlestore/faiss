@@ -7,6 +7,7 @@
 
 #include <faiss/impl/HNSW.h>
 
+#include <cmath>
 #include <string>
 
 #include <faiss/impl/AuxIndexStructures.h>
@@ -989,6 +990,9 @@ void HNSW::permute_entries(const idx_t* map) {
  **************************************************************/
 
 void HNSW::MinimaxHeap::push(storage_idx_t i, float v) {
+    if (std::isnan(v)) {
+        v = HC::neutral();
+    }
     if (k == n) {
         if (v >= dis[0])
             return;
