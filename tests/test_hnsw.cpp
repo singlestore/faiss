@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -163,6 +164,56 @@ void test_popmin_identical_distances(
     ASSERT_EQ(mm_heap.dis, cloned_mm_heap.dis);
 }
 
+void test_popmin_nan_distances(int heap_size, int amount_to_put, bool all_nan) {
+    // create a heap
+    faiss::HNSW::MinimaxHeap mm_heap(heap_size);
+
+    using storage_idx_t = faiss::HNSW::storage_idx_t;
+
+    std::default_random_engine rng(123 + heap_size * amount_to_put);
+    std::uniform_int_distribution<storage_idx_t> u(0, 65536);
+    std::uniform_real_distribution<float> uf(0, 1);
+
+    // generate random unique indices
+    std::unordered_set<storage_idx_t> indices;
+    while (indices.size() < amount_to_put) {
+        const storage_idx_t index = u(rng);
+        indices.insert(index);
+    }
+
+    // put ones into the heap, every other one with a finite distance unless
+    // all_nan is set
+    int num_finite = 0;
+    int i = 0;
+    for (const auto index : indices) {
+        float distance = std::numeric_limits<float>::quiet_NaN();
+        if (!all_nan && i % 2 == 1) {
+            distance = uf(rng);
+            num_finite++;
+        }
+        mm_heap.push(index, distance);
+        i++;
+    }
+
+    // the number of pops is bounded, so a pop_min that returns -1 without
+    // shrinking the heap fails the test instead of hanging it
+    std::unordered_set<storage_idx_t> popped;
+    for (int pops = 0; pops < amount_to_put; pops++) {
+        ASSERT_EQ(mm_heap.size(), amount_to_put - pops);
+
+        float vmin_dis = std::numeric_limits<float>::quiet_NaN();
+        storage_idx_t vmin_idx = mm_heap.pop_min(&vmin_dis);
+
+        ASSERT_EQ(indices.count(vmin_idx), 1u);
+        ASSERT_TRUE(popped.insert(vmin_idx).second);
+        ASSERT_FALSE(std::isnan(vmin_dis));
+        if (pops < num_finite) {
+            ASSERT_LT(vmin_dis, 1.0f);
+        }
+    }
+    ASSERT_EQ(mm_heap.size(), 0);
+}
+
 TEST(HNSW, Test_popmin) {
     std::vector<size_t> sizes = {1, 2, 3, 4, 5, 7, 9, 11, 16, 27, 32, 64, 128};
     for (const size_t size : sizes) {
@@ -187,6 +238,26 @@ TEST(HNSW, Test_popmin_infinite_distances) {
         for (size_t amount = size; amount > 0; amount /= 2) {
             test_popmin_identical_distances(
                     size, amount, std::numeric_limits<float>::infinity());
+        }
+    }
+}
+
+// sizes below, at and above 8 cover both the 8-wide AVX2 loop in pop_min and
+// its scalar tail
+TEST(HNSW, Test_popmin_nan_distances) {
+    std::vector<size_t> sizes = {1, 2, 3, 4, 5, 7, 8, 9, 11, 16, 27, 32, 64};
+    for (const size_t size : sizes) {
+        for (size_t amount = size; amount > 0; amount /= 2) {
+            test_popmin_nan_distances(size, amount, true);
+        }
+    }
+}
+
+TEST(HNSW, Test_popmin_mixed_nan_distances) {
+    std::vector<size_t> sizes = {1, 2, 3, 4, 5, 7, 8, 9, 11, 16, 27, 32, 64};
+    for (const size_t size : sizes) {
+        for (size_t amount = size; amount > 0; amount /= 2) {
+            test_popmin_nan_distances(size, amount, false);
         }
     }
 }
